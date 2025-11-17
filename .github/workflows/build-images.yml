@@ -1,7 +1,12 @@
 name: Build images
 
 on:
-  workflow_dispatch:  
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag'
+        required: true
+        default: 'v1.0.0'  
 
 jobs:
   build:
@@ -70,25 +75,21 @@ jobs:
           path: artifacts
           
       - name: List artifacts for debugging
-        run: ls -la artifacts/
+        run: |
+          echo "Artifacts structure:"
+          find artifacts/ -type f -name "*.img" | sort
+          echo "Total images found:"
+          find artifacts/ -type f -name "*.img" | wc -l
         
-      - name: Create Release
-        id: create_release
+      - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.tag }}
-          release_name: Release ${{ github.event.inputs.tag }}
+          name: Release ${{ github.event.inputs.tag }}
           draft: false
           prerelease: false
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Upload Release Assets
-        run: |
-          for file in artifacts/*/*.img; do
-            echo "Uploading $file"
-            gh release upload ${{ github.event.inputs.tag }} "$file" --clobber
-          done
+          files: |
+            artifacts/*/*.img
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
