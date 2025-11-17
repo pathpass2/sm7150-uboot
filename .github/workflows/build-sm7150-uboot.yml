@@ -114,8 +114,6 @@ jobs:
           name: "U-Boot ${{ github.event.inputs.tag }} - SM7150 Devices"
           artifacts: ./release-assets/*.img
           body: |
-            # U-Boot ${{ github.event.inputs.tag }} for SM7150 Devices
-
             **Build Date**: ${{ steps.date.outputs.date }}  
             **Total Images**: 16 (8 devices × 2 USB modes)
 
