@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        device: [sm7150-google-sunfish, sm7150-xiaomi-davinci, sm7150-xiaomi-surya-huaxing, sm7150-xiaomi-surya-tianma, sm7150-xiaomi-sweet, sm7150-xiaomi-tucana]
+        device: [sm7150-google-sunfish, sm7150-xiaomi-davinci, sm7150-xiaomi-surya-huaxing, sm7150-xiaomi-surya-tianma, sm7150-xiaomi-sweet, sm7150-xiaomi-toco, sm7150-xiaomi-tucana]
         usb_mode: [host, peripheral]
 
     name: Build ${{ matrix.device }}
@@ -60,48 +60,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: u-boot-${{ matrix.device }}-usb-${{ matrix.usb_mode }}.img
-          path: .output/u-boot-${{ matrix.device }}-usb-${{ matrix.usb_mode }}.img
-
-  release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    needs: build
-    if: success()
-    
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          
-      - name: Rename and organize artifacts
-        run: |
-          # Create release directory
-          mkdir -p release_files
-          
-          # Move and ensure unique filenames
-          for dir in artifacts/*/; do
-            if [ -d "$dir" ]; then
-              filename=$(ls "$dir"/*.img 2>/dev/null | head -1)
-              if [ -f "$filename" ]; then
-                # Extract device name from directory name
-                base_name=$(basename "$filename")
-                # Use the original filename which already contains device info
-                cp "$filename" "release_files/$base_name"
-              fi
-            fi
-          done
-          
-          echo "Final release files:"
-          ls -la release_files/
-          echo "Total files: $(ls release_files/ | wc -l)"
-        
-      - name: Create Release
-        uses: ncipollo/release-action@v1
-        with:
-          tag: ${{ github.event.inputs.tag }}
-          name: Release ${{ github.event.inputs.tag }}
-          artifacts: "release_files/*.img"
-          generateReleaseNotes: true
-          allowUpdates: true 
-          token: ${{ secrets.GITHUB_TOKEN }}
+          path: .output/u-boot.img
