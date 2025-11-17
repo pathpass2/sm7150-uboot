@@ -1,4 +1,4 @@
-name: Build u-boot.img
+name: Build U-Boot images
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
       tag:
         description: 'Release tag'
         required: true
-        default: 'v1.0.0' 
+        default: 'v1.0.0'
 
 jobs:
   build:
@@ -16,7 +16,7 @@ jobs:
         device: [sm7150-google-sunfish, sm7150-xiaomi-davinci-samsung, sm7150-xiaomi-davinci-visionox, sm7150-xiaomi-surya-huaxing, sm7150-xiaomi-surya-tianma, sm7150-xiaomi-sweet, sm7150-xiaomi-toco, sm7150-xiaomi-tucana]
         usb_mode: [host, peripheral]
 
-    name: Build ${{ matrix.device }}
+    name: Build ${{ matrix.device }} (USB-${{ matrix.usb_mode }})
     runs-on: ubuntu-latest
 
     steps:
@@ -28,7 +28,6 @@ jobs:
           sudo apt update
           sudo apt install -y --no-install-recommends gcc-aarch64-linux-gnu libgnutls28-dev
 
-      # mkbootimg in Ubuntu repos is broken, so use the forked C variant
       - name: Build mkbootimg
         run: |
           git clone https://github.com/osm0sis/mkbootimg
@@ -54,14 +53,13 @@ jobs:
         run: |
           gzip .output/u-boot-nodtb.bin -c > .output/u-boot-nodtb.bin.gz
           cat .output/u-boot-nodtb.bin.gz .output/dts/upstream/src/arm64/qcom/${{ matrix.device }}.dtb > .output/uboot-dtb
-          ./mkbootimg/mkbootimg --base '0x0' --kernel_offset '0x00008000' --pagesize '4096' --kernel .output/uboot-dtb -o .output/${{ matrix.device }}.img
+          ./mkbootimg/mkbootimg --base '0x0' --kernel_offset '0x00008000' --pagesize '4096' --kernel .output/uboot-dtb -o .output/${{ matrix.device }}-usb-${{ matrix.usb_mode }}.img
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.device }}-usb-${{ matrix.usb_mode }}.img
-          path: .output/${{ matrix.device }}.img
-
+          name: ${{ matrix.device }}-usb-${{ matrix.usb_mode }}
+          path: .output/${{ matrix.device }}-usb-${{ matrix.usb_mode }}.img
 
   upload-release:
     name: Upload to Release
@@ -77,19 +75,31 @@ jobs:
 
       - name: List all artifacts
         run: |
-          echo "Downloaded artifacts:"
-          find ./artifacts -name "*.img" | sort
+          echo "Downloaded artifacts structure:"
+          find ./artifacts -type f -name "*.img" | sort
           echo ""
-          echo "Total files: $(find ./artifacts -name "*.img" | wc -l)"
+          echo "Total artifact directories: $(ls -1 ./artifacts/ | wc -l)"
+          echo "Total image files: $(find ./artifacts -name "*.img" | wc -l)"
 
       - name: Create directory for release assets
         run: |
           mkdir -p release-assets
-          # 复制所有镜像文件到统一目录
+          # 复制所有镜像文件到统一目录，保持原文件名
           find ./artifacts -name "*.img" -exec cp {} ./release-assets/ \;
+          echo "Files in release-assets:"
+          ls -la ./release-assets/
+          echo "Total files for release: $(ls -1 ./release-assets/ | wc -l)"
 
-      - name: List release assets
-        run: ls -la ./release-assets/
+      - name: Verify file count
+        run: |
+          COUNT=$(find ./release-assets -name "*.img" | wc -l)
+          echo "Found $COUNT image files"
+          if [ $COUNT -ne 16 ]; then
+            echo "ERROR: Expected 16 files but found $COUNT"
+            echo "Available files:"
+            ls -la ./release-assets/
+            exit 1
+          fi
 
       - name: Get current date
         id: date
@@ -107,33 +117,46 @@ jobs:
 
             **Release**: ${{ github.event.inputs.tag || 'v1.0.0' }}  
             **Build Date**: ${{ steps.date.outputs.date }}  
-            **Total Images**: 16
+            **Total Images**: 16 (8 devices × 2 USB modes)
 
             ## Supported Devices
 
-            | Device | Description |
-            |--------|-------------|
-            | sm7150-google-sunfish | Google Pixel 4a |
-            | sm7150-xiaomi-davinci-samsung | Xiaomi Mi 9T  or  Redmi K20 (Samsung display) |
-            | sm7150-xiaomi-davinci-visionox | Xiaomi Mi 9T  or  Redmi K20 (Visionox display) |
-            | sm7150-xiaomi-surya-huaxing | Poco X3 NFC (Huaxing display) |
-            | sm7150-xiaomi-surya-tianma | Poco X3 NFC (Tianma display) |
-            | sm7150-xiaomi-sweet | Redmi Note 10 Pro |
-            | sm7150-xiaomi-toco | Mi Note 10 Lite |
-            | sm7150-xiaomi-tucana | Mi Note 10 |
+            | Device | Description | Host Mode | Peripheral Mode |
+            |--------|-------------|-----------|----------------|
+            | sm7150-google-sunfish | Google Pixel 4a | ✅ | ✅ |
+            | sm7150-xiaomi-davinci-samsung | Xiaomi Mi 9T  or Redmi K20 (Samsung) | ✅ | ✅ |
+            | sm7150-xiaomi-davinci-visionox.dts | Xiaomi Mi 9T  or Redmi K20 (Visionox) | ✅ | ✅ |
+            | sm7150-xiaomi-surya-huaxing | Poco X3 NFC (Huaxing) | ✅ | ✅ |
+            | sm7150-xiaomi-surya-tianma | Poco X3 NFC (Tianma) | ✅ | ✅ |
+            | sm7150-xiaomi-sweet | Redmi Note 10 Pro | ✅ | ✅ |
+            | sm7150-xiaomi-toco | Mi Note 10 Lite | ✅ | ✅ |
+            | sm7150-xiaomi-tucana | Mi Note 10 | ✅ | ✅ |
 
             ## USB Modes
 
             - **host**: USB host mode (OTG as host)
             - **peripheral**: USB peripheral mode (OTG as device)
 
-            ## File Naming Convention
+            ## File List
 
-            Files are named as: `{device}-usb-{mode}.img`
-
-            Example:
-            - `sm7150-xiaomi-sweet-usb-host.img`
-            - `sm7150-google-sunfish-usb-peripheral.img`
+            ```
+            sm7150-google-sunfish-usb-host.img
+            sm7150-google-sunfish-usb-peripheral.img
+            sm7150-xiaomi-davinci-samsung-usb-host.img
+            sm7150-xiaomi-davinci-samsung-usb-peripheral.img
+            sm7150-xiaomi-davinci-visionox-usb-host.img
+            sm7150-xiaomi-davinci-visionox-usb-peripheral.img
+            sm7150-xiaomi-surya-huaxing-usb-host.img
+            sm7150-xiaomi-surya-huaxing-usb-peripheral.img
+            sm7150-xiaomi-surya-tianma-usb-host.img
+            sm7150-xiaomi-surya-tianma-usb-peripheral.img
+            sm7150-xiaomi-sweet-usb-host.img
+            sm7150-xiaomi-sweet-usb-peripheral.img
+            sm7150-xiaomi-toco-usb-host.img
+            sm7150-xiaomi-toco-usb-peripheral.img
+            sm7150-xiaomi-tucana-usb-host.img
+            sm7150-xiaomi-tucana-usb-peripheral.img
+            ```
 
             ## Usage
 
@@ -143,12 +166,6 @@ jobs:
             ```bash
             fastboot flash boot <image_name>.img
             ```
-
-            ## Notes
-
-            - Each device has both USB host and peripheral variants
-            - Make sure to select the correct display variant for your device
-            - Backup your current boot image before flashing
 
           draft: false
           prerelease: false
