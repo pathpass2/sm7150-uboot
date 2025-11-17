@@ -6,7 +6,7 @@ on:
       tag:
         description: 'Release tag'
         required: true
-        default: 'v1.0.0'  
+        default: 'v1.0.0' 
 
 jobs:
   build:
@@ -61,3 +61,97 @@ jobs:
         with:
           name: ${{ matrix.device }}-usb-${{ matrix.usb_mode }}.img
           path: .output/${{ matrix.device }}.img
+
+
+  upload-release:
+    name: Upload to Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ always() && needs.build.result == 'success' }}
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: List all artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find ./artifacts -name "*.img" | sort
+          echo ""
+          echo "Total files: $(find ./artifacts -name "*.img" | wc -l)"
+
+      - name: Create directory for release assets
+        run: |
+          mkdir -p release-assets
+          # 复制所有镜像文件到统一目录
+          find ./artifacts -name "*.img" -exec cp {} ./release-assets/ \;
+
+      - name: List release assets
+        run: ls -la ./release-assets/
+
+      - name: Get current date
+        id: date
+        run: |
+          echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+      - name: Upload to Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.event.inputs.tag || 'v1.0.0' }}
+          name: "U-Boot Images ${{ github.event.inputs.tag || 'v1.0.0' }}"
+          artifacts: ./release-assets/*.img
+          body: |
+            # U-Boot Images for SM7150 Devices
+
+            **Release**: ${{ github.event.inputs.tag || 'v1.0.0' }}  
+            **Build Date**: ${{ steps.date.outputs.date }}  
+            **Total Images**: 16
+
+            ## Supported Devices
+
+            | Device | Description |
+            |--------|-------------|
+            | sm7150-google-sunfish | Google Pixel 4a |
+            | sm7150-xiaomi-davinci-samsung | Xiaomi Mi 9T (Samsung display) |
+            | sm7150-xiaomi-davinci-visionox | Xiaomi Mi 9T (Visionox display) |
+            | sm7150-xiaomi-surya-huaxing | Poco X3 NFC (Huaxing display) |
+            | sm7150-xiaomi-surya-tianma | Poco X3 NFC (Tianma display) |
+            | sm7150-xiaomi-sweet | Redmi Note 10 Pro |
+            | sm7150-xiaomi-toco | Mi Note 10 Lite |
+            | sm7150-xiaomi-tucana | Mi Note 10 |
+
+            ## USB Modes
+
+            - **host**: USB host mode (OTG as host)
+            - **peripheral**: USB peripheral mode (OTG as device)
+
+            ## File Naming Convention
+
+            Files are named as: `{device}-usb-{mode}.img`
+
+            Example:
+            - `sm7150-xiaomi-sweet-usb-host.img`
+            - `sm7150-google-sunfish-usb-peripheral.img`
+
+            ## Usage
+
+            1. Identify your device and display type
+            2. Choose the appropriate USB mode
+            3. Flash using fastboot:
+            ```bash
+            fastboot flash boot <image_name>.img
+            ```
+
+            ## Notes
+
+            - Each device has both USB host and peripheral variants
+            - Make sure to select the correct display variant for your device
+            - Backup your current boot image before flashing
+
+          draft: false
+          prerelease: false
+          allowUpdates: true
+          replacesArtifacts: true
+          token: ${{ secrets.GITHUB_TOKEN }}
