@@ -1,4 +1,4 @@
-name: Build images
+name: Build u-boot.img
 
 on:
   workflow_dispatch:
