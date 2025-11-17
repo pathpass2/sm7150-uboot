@@ -60,7 +60,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: u-boot-${{ matrix.device }}-usb-${{ matrix.usb_mode }}.img
-          path: .output/u-boot.img
+          path: .output/u-boot-${{ matrix.device }}-usb-${{ matrix.usb_mode }}.img
 
   release:
     name: Create Release
@@ -74,22 +74,33 @@ jobs:
         with:
           path: artifacts
           
-      - name: List artifacts for debugging
+      - name: Rename and organize artifacts
         run: |
-          echo "Artifacts structure:"
-          find artifacts/ -type f -name "*.img" | sort
-          echo "Total images found:"
-          find artifacts/ -type f -name "*.img" | wc -l
+          # Create release directory
+          mkdir -p release_files
+          
+          # Move and ensure unique filenames
+          for dir in artifacts/*/; do
+            if [ -d "$dir" ]; then
+              filename=$(ls "$dir"/*.img 2>/dev/null | head -1)
+              if [ -f "$filename" ]; then
+                # Extract device name from directory name
+                base_name=$(basename "$filename")
+                # Use the original filename which already contains device info
+                cp "$filename" "release_files/$base_name"
+              fi
+            fi
+          done
+          
+          echo "Final release files:"
+          ls -la release_files/
+          echo "Total files: $(ls release_files/ | wc -l)"
         
-      - name: Create Release and Upload Assets
-        uses: softprops/action-gh-release@v1
+      - name: Create Release
+        uses: ncipollo/release-action@v1
         with:
-          tag_name: ${{ github.event.inputs.tag }}
+          tag: ${{ github.event.inputs.tag }}
           name: Release ${{ github.event.inputs.tag }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-          files: |
-            artifacts/*/*.img
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: "release_files/*.img"
+          generateReleaseNotes: true
+          token: ${{ secrets.GITHUB_TOKEN }}
