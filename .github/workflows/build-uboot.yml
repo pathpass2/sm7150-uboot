@@ -114,8 +114,8 @@ jobs:
             | Device | Description |
             |--------|-------------|
             | sm7150-google-sunfish | Google Pixel 4a |
-            | sm7150-xiaomi-davinci-samsung | Xiaomi Mi 9T (Samsung display) |
-            | sm7150-xiaomi-davinci-visionox | Xiaomi Mi 9T (Visionox display) |
+            | sm7150-xiaomi-davinci-samsung | Xiaomi Mi 9T  or  Redmi K20 (Samsung display) |
+            | sm7150-xiaomi-davinci-visionox | Xiaomi Mi 9T  or  Redmi K20 (Visionox display) |
             | sm7150-xiaomi-surya-huaxing | Poco X3 NFC (Huaxing display) |
             | sm7150-xiaomi-surya-tianma | Poco X3 NFC (Tianma display) |
             | sm7150-xiaomi-sweet | Redmi Note 10 Pro |
