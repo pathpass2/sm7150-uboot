@@ -30,10 +30,20 @@ jobs:
             VERSION=$(grep '^VERSION =' Makefile | head -1 | awk '{print $3}')
             PATCHLEVEL=$(grep '^PATCHLEVEL =' Makefile | head -1 | awk '{print $3}')
             SUBLEVEL=$(grep '^SUBLEVEL =' Makefile | head -1 | awk '{print $3}')
-            EXTRAVERSION=$(grep '^EXTRAVERSION =' Makefile | head -1 | awk '{print $3}' | sed 's/^-//')
+            EXTRAVERSION=$(grep '^EXTRAVERSION =' Makefile | head -1 | awk '{print $3}' | sed 's/ //g')
             
-            if [ -n "$VERSION" ] && [ -n "$PATCHLEVEL" ] && [ -n "$SUBLEVEL" ]; then
-              UB_VERSION="${VERSION}.${PATCHLEVEL}.${SUBLEVEL}"
+            echo "Debug: VERSION='$VERSION'"
+            echo "Debug: PATCHLEVEL='$PATCHLEVEL'"
+            echo "Debug: SUBLEVEL='$SUBLEVEL'"
+            echo "Debug: EXTRAVERSION='$EXTRAVERSION'"
+            
+            if [ -n "$VERSION" ] && [ -n "$PATCHLEVEL" ]; then
+              UB_VERSION="${VERSION}.${PATCHLEVEL}"
+              # 只有当 SUBLEVEL 不为空时才添加
+              if [ -n "$SUBLEVEL" ] && [ "$SUBLEVEL" != "" ]; then
+                UB_VERSION="${UB_VERSION}.${SUBLEVEL}"
+              fi
+              # 添加 EXTRAVERSION
               if [ -n "$EXTRAVERSION" ] && [ "$EXTRAVERSION" != "" ]; then
                 UB_VERSION="${UB_VERSION}${EXTRAVERSION}"
               fi
@@ -41,13 +51,14 @@ jobs:
               echo "UBOOT_TAG=v$UB_VERSION" >> $GITHUB_OUTPUT
               echo "Found U-Boot version: $UB_VERSION"
             else
-              echo "UBOOT_VERSION=1.0.0" >> $GITHUB_OUTPUT
-              echo "UBOOT_TAG=v1.0.0" >> $GITHUB_OUTPUT
+              # 如果无法获取版本，使用默认值
+              echo "UBOOT_VERSION=2025.10-rc5" >> $GITHUB_OUTPUT
+              echo "UBOOT_TAG=v2025.10-rc5" >> $GITHUB_OUTPUT
               echo "Using default version"
             fi
           else
-            echo "UBOOT_VERSION=1.0.0" >> $GITHUB_OUTPUT
-            echo "UBOOT_TAG=v1.0.0" >> $GITHUB_OUTPUT
+            echo "UBOOT_VERSION=2025.10-rc5" >> $GITHUB_OUTPUT
+            echo "UBOOT_TAG=v2025.10-rc5" >> $GITHUB_OUTPUT
             echo "Makefile not found, using default version"
           fi
 
@@ -101,26 +112,55 @@ jobs:
         with:
           path: ./artifacts
 
+      - name: Get U-Boot version from source
+        id: uboot_version
+        run: |
+          # 直接从源码获取版本号
+          if [ -f "Makefile" ]; then
+            VERSION=$(grep '^VERSION =' Makefile | head -1 | awk '{print $3}')
+            PATCHLEVEL=$(grep '^PATCHLEVEL =' Makefile | head -1 | awk '{print $3}')
+            SUBLEVEL=$(grep '^SUBLEVEL =' Makefile | head -1 | awk '{print $3}')
+            EXTRAVERSION=$(grep '^EXTRAVERSION =' Makefile | head -1 | awk '{print $3}' | sed 's/ //g')
+            
+            echo "Debug: VERSION='$VERSION'"
+            echo "Debug: PATCHLEVEL='$PATCHLEVEL'"
+            echo "Debug: SUBLEVEL='$SUBLEVEL'"
+            echo "Debug: EXTRAVERSION='$EXTRAVERSION'"
+            
+            if [ -n "$VERSION" ] && [ -n "$PATCHLEVEL" ]; then
+              UB_VERSION="${VERSION}.${PATCHLEVEL}"
+              # 只有当 SUBLEVEL 不为空时才添加
+              if [ -n "$SUBLEVEL" ] && [ "$SUBLEVEL" != "" ]; then
+                UB_VERSION="${UB_VERSION}.${SUBLEVEL}"
+              fi
+              # 添加 EXTRAVERSION
+              if [ -n "$EXTRAVERSION" ] && [ "$EXTRAVERSION" != "" ]; then
+                UB_VERSION="${UB_VERSION}${EXTRAVERSION}"
+              fi
+              echo "UBOOT_VERSION=$UB_VERSION" >> $GITHUB_OUTPUT
+              echo "UBOOT_TAG=v$UB_VERSION" >> $GITHUB_OUTPUT
+              echo "Using U-Boot version from source: $UB_VERSION"
+            else
+              echo "UBOOT_VERSION=2025.10-rc5" >> $GITHUB_OUTPUT
+              echo "UBOOT_TAG=v2025.10-rc5" >> $GITHUB_OUTPUT
+              echo "Using fallback version"
+            fi
+          else
+            echo "UBOOT_VERSION=2025.10-rc5" >> $GITHUB_OUTPUT
+            echo "UBOOT_TAG=v2025.10-rc5" >> $GITHUB_OUTPUT
+            echo "Makefile not found, using fallback version"
+          fi
+
       - name: Debug artifact structure
         run: |
           echo "=== Artifact structure ==="
           find ./artifacts -type f -name "*.img" | sort
           echo ""
-          echo "=== Artifact directories ==="
-          ls -la ./artifacts/
-          echo ""
-          echo "=== Files in each artifact ==="
-          for dir in ./artifacts/*/; do
-            if [ -d "$dir" ]; then
-              echo "Directory: $dir"
-              ls -la "$dir" || echo "No files in $dir"
-            fi
-          done
+          echo "Total image files: $(find ./artifacts -name "*.img" | wc -l)"
 
       - name: Create directory for release assets
         run: |
           mkdir -p release-assets
-          # 复制所有镜像文件到统一目录，保持原文件名
           find ./artifacts -name "*.img" -exec cp {} ./release-assets/ \;
           echo "Files in release-assets:"
           ls -la ./release-assets/
@@ -134,28 +174,11 @@ jobs:
           
           if [ $COUNT -ne 16 ]; then
             echo "ERROR: Expected 16 files but found $COUNT"
-            echo "Available files:"
             ls -la ./release-assets/
-            echo ""
-            echo "Looking for specific patterns:"
-            echo "Host files: $(find ./release-assets -name "*usb-host.img" | wc -l)"
-            echo "Peripheral files: $(find ./release-assets -name "*usb-peripheral.img" | wc -l)"
             exit 1
           else
             echo "SUCCESS: Found all 16 files"
-            echo ""
-            echo "Host mode files:"
-            find ./release-assets -name "*usb-host.img" | sort
-            echo ""
-            echo "Peripheral mode files:"
-            find ./release-assets -name "*usb-peripheral.img" | sort
           fi
-
-      - name: Get U-Boot version
-        id: uboot_version
-        run: |
-          echo "UBOOT_VERSION=2024.01" >> $GITHUB_OUTPUT
-          echo "UBOOT_TAG=v2024.01" >> $GITHUB_OUTPUT
 
       - name: Get current date
         id: date
@@ -180,8 +203,8 @@ jobs:
             | Device | Description | Host Mode | Peripheral Mode |
             |--------|-------------|-----------|----------------|
             | sm7150-google-sunfish | Google Pixel 4a | ✅ | ✅ |
-            | sm7150-xiaomi-davinci-samsung | Xiaomi Mi 9T or Redmi K20 (Samsung) | ✅ | ✅ |
-            | sm7150-xiaomi-davinci-visionox | Xiaomi Mi 9T or Redmi K20 (Visionox) | ✅ | ✅ |
+            | sm7150-xiaomi-davinci-samsung | Xiaomi Mi 9T / Redmi K20 (Samsung) | ✅ | ✅ |
+            | sm7150-xiaomi-davinci-visionox | Xiaomi Mi 9T / Redmi K20 (Visionox) | ✅ | ✅ |
             | sm7150-xiaomi-surya-huaxing | Poco X3 NFC (Huaxing) | ✅ | ✅ |
             | sm7150-xiaomi-surya-tianma | Poco X3 NFC (Tianma) | ✅ | ✅ |
             | sm7150-xiaomi-sweet | Redmi Note 10 Pro | ✅ | ✅ |
@@ -196,32 +219,6 @@ jobs:
             ## File Naming Convention
 
             Files are named as: `{device}-usb-{mode}.img`
-
-            Example:
-            - `sm7150-google-sunfish-usb-host.img` - Host mode for Google Pixel 4a
-            - `sm7150-google-sunfish-usb-peripheral.img` - Peripheral mode for Google Pixel 4a
-
-            ## Complete File List
-
-            ### Host Mode
-            - sm7150-google-sunfish-usb-host.img
-            - sm7150-xiaomi-davinci-samsung-usb-host.img
-            - sm7150-xiaomi-davinci-visionox-usb-host.img
-            - sm7150-xiaomi-surya-huaxing-usb-host.img
-            - sm7150-xiaomi-surya-tianma-usb-host.img
-            - sm7150-xiaomi-sweet-usb-host.img
-            - sm7150-xiaomi-toco-usb-host.img
-            - sm7150-xiaomi-tucana-usb-host.img
-
-            ### Peripheral Mode
-            - sm7150-google-sunfish-usb-peripheral.img
-            - sm7150-xiaomi-davinci-samsung-usb-peripheral.img
-            - sm7150-xiaomi-davinci-visionox-usb-peripheral.img
-            - sm7150-xiaomi-surya-huaxing-usb-peripheral.img
-            - sm7150-xiaomi-surya-tianma-usb-peripheral.img
-            - sm7150-xiaomi-sweet-usb-peripheral.img
-            - sm7150-xiaomi-toco-usb-peripheral.img
-            - sm7150-xiaomi-tucana-usb-peripheral.img
 
             ## Usage
 
