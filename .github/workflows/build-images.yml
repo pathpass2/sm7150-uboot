@@ -103,4 +103,5 @@ jobs:
           name: Release ${{ github.event.inputs.tag }}
           artifacts: "release_files/*.img"
           generateReleaseNotes: true
+          allowUpdates: true 
           token: ${{ secrets.GITHUB_TOKEN }}
