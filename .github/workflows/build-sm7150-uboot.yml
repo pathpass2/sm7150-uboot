@@ -1,4 +1,4 @@
-name: Build U-Boot images
+name: Build sm7150-U-Boot images
 
 on:
   workflow_dispatch:
@@ -26,7 +26,6 @@ jobs:
       - name: Get U-Boot version
         id: uboot_version
         run: |
-          # 从 U-Boot 源码中提取版本号
           if [ -f "Makefile" ]; then
             VERSION=$(grep '^VERSION =' Makefile | head -1 | awk '{print $3}')
             PATCHLEVEL=$(grep '^PATCHLEVEL =' Makefile | head -1 | awk '{print $3}')
@@ -42,13 +41,13 @@ jobs:
               echo "UBOOT_TAG=v$UB_VERSION" >> $GITHUB_OUTPUT
               echo "Found U-Boot version: $UB_VERSION"
             else
-              echo "UBOOT_VERSION=${{ github.event.inputs.tag || 'v1.0.0' }}" >> $GITHUB_OUTPUT
-              echo "UBOOT_TAG=${{ github.event.inputs.tag || 'v1.0.0' }}" >> $GITHUB_OUTPUT
+              echo "UBOOT_VERSION=1.0.0" >> $GITHUB_OUTPUT
+              echo "UBOOT_TAG=v1.0.0" >> $GITHUB_OUTPUT
               echo "Using default version"
             fi
           else
-            echo "UBOOT_VERSION=${{ github.event.inputs.tag || 'v1.0.0' }}" >> $GITHUB_OUTPUT
-            echo "UBOOT_TAG=${{ github.event.inputs.tag || 'v1.0.0' }}" >> $GITHUB_OUTPUT
+            echo "UBOOT_VERSION=1.0.0" >> $GITHUB_OUTPUT
+            echo "UBOOT_TAG=v1.0.0" >> $GITHUB_OUTPUT
             echo "Makefile not found, using default version"
           fi
 
@@ -102,55 +101,21 @@ jobs:
         with:
           path: ./artifacts
 
-      - name: Get U-Boot version from build job
-        id: uboot_version
+      - name: Debug artifact structure
         run: |
-          # 从构建作业中获取版本信息
-          echo "Getting U-Boot version from build job..."
-          # 这里我们使用第一个构建作业的输出来获取版本
-          # 由于所有构建作业使用相同的源码，版本应该相同
-          UB_VERSION=$(echo "${{ needs.build.outputs.uboot_version }}" | head -1)
-          if [ -n "$UB_VERSION" ] && [ "$UB_VERSION" != "null" ]; then
-            echo "UBOOT_VERSION=$UB_VERSION" >> $GITHUB_OUTPUT
-            echo "UBOOT_TAG=v$UB_VERSION" >> $GITHUB_OUTPUT
-            echo "Using U-Boot version from build job: $UB_VERSION"
-          else
-            # 如果无法从构建作业获取，则直接从源码读取
-            if [ -f "Makefile" ]; then
-              VERSION=$(grep '^VERSION =' Makefile | head -1 | awk '{print $3}')
-              PATCHLEVEL=$(grep '^PATCHLEVEL =' Makefile | head -1 | awk '{print $3}')
-              SUBLEVEL=$(grep '^SUBLEVEL =' Makefile | head -1 | awk '{print $3}')
-              EXTRAVERSION=$(grep '^EXTRAVERSION =' Makefile | head -1 | awk '{print $3}' | sed 's/^-//')
-              
-              if [ -n "$VERSION" ] && [ -n "$PATCHLEVEL" ] && [ -n "$SUBLEVEL" ]; then
-                UB_VERSION="${VERSION}.${PATCHLEVEL}.${SUBLEVEL}"
-                if [ -n "$EXTRAVERSION" ] && [ "$EXTRAVERSION" != "" ]; then
-                  UB_VERSION="${UB_VERSION}${EXTRAVERSION}"
-                fi
-                echo "UBOOT_VERSION=$UB_VERSION" >> $GITHUB_OUTPUT
-                echo "UBOOT_TAG=v$UB_VERSION" >> $GITHUB_OUTPUT
-                echo "Found U-Boot version from source: $UB_VERSION"
-              else
-                UB_VERSION="${{ github.event.inputs.tag || '1.0.0' }}"
-                echo "UBOOT_VERSION=$UB_VERSION" >> $GITHUB_OUTPUT
-                echo "UBOOT_TAG=v$UB_VERSION" >> $GITHUB_OUTPUT
-                echo "Using default version: $UB_VERSION"
-              fi
-            else
-              UB_VERSION="${{ github.event.inputs.tag || '1.0.0' }}"
-              echo "UBOOT_VERSION=$UB_VERSION" >> $GITHUB_OUTPUT
-              echo "UBOOT_TAG=v$UB_VERSION" >> $GITHUB_OUTPUT
-              echo "Using default version: $UB_VERSION"
-            fi
-          fi
-
-      - name: List all artifacts
-        run: |
-          echo "Downloaded artifacts structure:"
+          echo "=== Artifact structure ==="
           find ./artifacts -type f -name "*.img" | sort
           echo ""
-          echo "Total artifact directories: $(ls -1 ./artifacts/ | wc -l)"
-          echo "Total image files: $(find ./artifacts -name "*.img" | wc -l)"
+          echo "=== Artifact directories ==="
+          ls -la ./artifacts/
+          echo ""
+          echo "=== Files in each artifact ==="
+          for dir in ./artifacts/*/; do
+            if [ -d "$dir" ]; then
+              echo "Directory: $dir"
+              ls -la "$dir" || echo "No files in $dir"
+            fi
+          done
 
       - name: Create directory for release assets
         run: |
@@ -161,16 +126,36 @@ jobs:
           ls -la ./release-assets/
           echo "Total files for release: $(ls -1 ./release-assets/ | wc -l)"
 
-      - name: Verify file count
+      - name: Verify file count and names
         run: |
+          echo "=== Verifying files ==="
           COUNT=$(find ./release-assets -name "*.img" | wc -l)
           echo "Found $COUNT image files"
+          
           if [ $COUNT -ne 16 ]; then
             echo "ERROR: Expected 16 files but found $COUNT"
             echo "Available files:"
             ls -la ./release-assets/
+            echo ""
+            echo "Looking for specific patterns:"
+            echo "Host files: $(find ./release-assets -name "*usb-host.img" | wc -l)"
+            echo "Peripheral files: $(find ./release-assets -name "*usb-peripheral.img" | wc -l)"
             exit 1
+          else
+            echo "SUCCESS: Found all 16 files"
+            echo ""
+            echo "Host mode files:"
+            find ./release-assets -name "*usb-host.img" | sort
+            echo ""
+            echo "Peripheral mode files:"
+            find ./release-assets -name "*usb-peripheral.img" | sort
           fi
+
+      - name: Get U-Boot version
+        id: uboot_version
+        run: |
+          echo "UBOOT_VERSION=2024.01" >> $GITHUB_OUTPUT
+          echo "UBOOT_TAG=v2024.01" >> $GITHUB_OUTPUT
 
       - name: Get current date
         id: date
@@ -208,22 +193,49 @@ jobs:
             - **host**: USB host mode (OTG as host)
             - **peripheral**: USB peripheral mode (OTG as device)
 
-            ## File List
+            ## File Naming Convention
 
-            All files follow the naming pattern: `{device}-usb-{mode}.img`
+            Files are named as: `{device}-usb-{mode}.img`
+
+            Example:
+            - `sm7150-google-sunfish-usb-host.img` - Host mode for Google Pixel 4a
+            - `sm7150-google-sunfish-usb-peripheral.img` - Peripheral mode for Google Pixel 4a
+
+            ## Complete File List
+
+            ### Host Mode
+            - sm7150-google-sunfish-usb-host.img
+            - sm7150-xiaomi-davinci-samsung-usb-host.img
+            - sm7150-xiaomi-davinci-visionox-usb-host.img
+            - sm7150-xiaomi-surya-huaxing-usb-host.img
+            - sm7150-xiaomi-surya-tianma-usb-host.img
+            - sm7150-xiaomi-sweet-usb-host.img
+            - sm7150-xiaomi-toco-usb-host.img
+            - sm7150-xiaomi-tucana-usb-host.img
+
+            ### Peripheral Mode
+            - sm7150-google-sunfish-usb-peripheral.img
+            - sm7150-xiaomi-davinci-samsung-usb-peripheral.img
+            - sm7150-xiaomi-davinci-visionox-usb-peripheral.img
+            - sm7150-xiaomi-surya-huaxing-usb-peripheral.img
+            - sm7150-xiaomi-surya-tianma-usb-peripheral.img
+            - sm7150-xiaomi-sweet-usb-peripheral.img
+            - sm7150-xiaomi-toco-usb-peripheral.img
+            - sm7150-xiaomi-tucana-usb-peripheral.img
 
             ## Usage
 
             1. Identify your device and display type
-            2. Choose the appropriate USB mode
+            2. Choose the appropriate USB mode (host or peripheral)
             3. Flash using fastboot:
             ```bash
             fastboot flash boot <image_name>.img
             ```
 
-            ## Source
+            ## Notes
 
-            Built from U-Boot ${{ steps.uboot_version.outputs.UBOOT_VERSION }} source code.
+            - Make sure to select the correct display variant for your device
+            - Backup your current boot image before flashing
 
           draft: false
           prerelease: false
