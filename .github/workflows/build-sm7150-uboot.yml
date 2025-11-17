@@ -6,7 +6,7 @@ on:
       tag:
         description: 'Release tag'
         required: true
-        default: 'v1.0.0'
+        default: 'v2025.10-rc5'
 
 jobs:
   build:
@@ -22,45 +22,6 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
-
-      - name: Get U-Boot version
-        id: uboot_version
-        run: |
-          if [ -f "Makefile" ]; then
-            VERSION=$(grep '^VERSION =' Makefile | head -1 | awk '{print $3}')
-            PATCHLEVEL=$(grep '^PATCHLEVEL =' Makefile | head -1 | awk '{print $3}')
-            SUBLEVEL=$(grep '^SUBLEVEL =' Makefile | head -1 | awk '{print $3}')
-            EXTRAVERSION=$(grep '^EXTRAVERSION =' Makefile | head -1 | awk '{print $3}' | sed 's/ //g')
-            
-            echo "Debug: VERSION='$VERSION'"
-            echo "Debug: PATCHLEVEL='$PATCHLEVEL'"
-            echo "Debug: SUBLEVEL='$SUBLEVEL'"
-            echo "Debug: EXTRAVERSION='$EXTRAVERSION'"
-            
-            if [ -n "$VERSION" ] && [ -n "$PATCHLEVEL" ]; then
-              UB_VERSION="${VERSION}.${PATCHLEVEL}"
-              # 只有当 SUBLEVEL 不为空时才添加
-              if [ -n "$SUBLEVEL" ] && [ "$SUBLEVEL" != "" ]; then
-                UB_VERSION="${UB_VERSION}.${SUBLEVEL}"
-              fi
-              # 添加 EXTRAVERSION
-              if [ -n "$EXTRAVERSION" ] && [ "$EXTRAVERSION" != "" ]; then
-                UB_VERSION="${UB_VERSION}${EXTRAVERSION}"
-              fi
-              echo "UBOOT_VERSION=$UB_VERSION" >> $GITHUB_OUTPUT
-              echo "UBOOT_TAG=v$UB_VERSION" >> $GITHUB_OUTPUT
-              echo "Found U-Boot version: $UB_VERSION"
-            else
-              # 如果无法获取版本，使用默认值
-              echo "UBOOT_VERSION=2025.10-rc5" >> $GITHUB_OUTPUT
-              echo "UBOOT_TAG=v2025.10-rc5" >> $GITHUB_OUTPUT
-              echo "Using default version"
-            fi
-          else
-            echo "UBOOT_VERSION=2025.10-rc5" >> $GITHUB_OUTPUT
-            echo "UBOOT_TAG=v2025.10-rc5" >> $GITHUB_OUTPUT
-            echo "Makefile not found, using default version"
-          fi
 
       - name: Install dependencies
         run: |
@@ -112,45 +73,6 @@ jobs:
         with:
           path: ./artifacts
 
-      - name: Get U-Boot version from source
-        id: uboot_version
-        run: |
-          # 直接从源码获取版本号
-          if [ -f "Makefile" ]; then
-            VERSION=$(grep '^VERSION =' Makefile | head -1 | awk '{print $3}')
-            PATCHLEVEL=$(grep '^PATCHLEVEL =' Makefile | head -1 | awk '{print $3}')
-            SUBLEVEL=$(grep '^SUBLEVEL =' Makefile | head -1 | awk '{print $3}')
-            EXTRAVERSION=$(grep '^EXTRAVERSION =' Makefile | head -1 | awk '{print $3}' | sed 's/ //g')
-            
-            echo "Debug: VERSION='$VERSION'"
-            echo "Debug: PATCHLEVEL='$PATCHLEVEL'"
-            echo "Debug: SUBLEVEL='$SUBLEVEL'"
-            echo "Debug: EXTRAVERSION='$EXTRAVERSION'"
-            
-            if [ -n "$VERSION" ] && [ -n "$PATCHLEVEL" ]; then
-              UB_VERSION="${VERSION}.${PATCHLEVEL}"
-              # 只有当 SUBLEVEL 不为空时才添加
-              if [ -n "$SUBLEVEL" ] && [ "$SUBLEVEL" != "" ]; then
-                UB_VERSION="${UB_VERSION}.${SUBLEVEL}"
-              fi
-              # 添加 EXTRAVERSION
-              if [ -n "$EXTRAVERSION" ] && [ "$EXTRAVERSION" != "" ]; then
-                UB_VERSION="${UB_VERSION}${EXTRAVERSION}"
-              fi
-              echo "UBOOT_VERSION=$UB_VERSION" >> $GITHUB_OUTPUT
-              echo "UBOOT_TAG=v$UB_VERSION" >> $GITHUB_OUTPUT
-              echo "Using U-Boot version from source: $UB_VERSION"
-            else
-              echo "UBOOT_VERSION=2025.10-rc5" >> $GITHUB_OUTPUT
-              echo "UBOOT_TAG=v2025.10-rc5" >> $GITHUB_OUTPUT
-              echo "Using fallback version"
-            fi
-          else
-            echo "UBOOT_VERSION=2025.10-rc5" >> $GITHUB_OUTPUT
-            echo "UBOOT_TAG=v2025.10-rc5" >> $GITHUB_OUTPUT
-            echo "Makefile not found, using fallback version"
-          fi
-
       - name: Debug artifact structure
         run: |
           echo "=== Artifact structure ==="
@@ -188,10 +110,12 @@ jobs:
       - name: Upload to Release
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ steps.uboot_version.outputs.UBOOT_TAG }}
-          name: "U-Boot ${{ steps.uboot_version.outputs.UBOOT_VERSION }} - SM7150 Devices"
+          tag: ${{ github.event.inputs.tag }}
+          name: "U-Boot ${{ github.event.inputs.tag }} - SM7150 Devices"
           artifacts: ./release-assets/*.img
           body: |
+            # U-Boot ${{ github.event.inputs.tag }} for SM7150 Devices
+
             **Build Date**: ${{ steps.date.outputs.date }}  
             **Total Images**: 16 (8 devices × 2 USB modes)
 
@@ -200,8 +124,8 @@ jobs:
             | Device | Description | Host Mode | Peripheral Mode |
             |--------|-------------|-----------|----------------|
             | sm7150-google-sunfish | Google Pixel 4a | ✅ | ✅ |
-            | sm7150-xiaomi-davinci-samsung | Xiaomi Mi 9T / Redmi K20 (Samsung) | ✅ | ✅ |
-            | sm7150-xiaomi-davinci-visionox | Xiaomi Mi 9T / Redmi K20 (Visionox) | ✅ | ✅ |
+            | sm7150-xiaomi-davinci-samsung | Xiaomi Mi 9T or Redmi K20 (Samsung) | ✅ | ✅ |
+            | sm7150-xiaomi-davinci-visionox | Xiaomi Mi 9T or Redmi K20 (Visionox) | ✅ | ✅ |
             | sm7150-xiaomi-surya-huaxing | Poco X3 NFC (Huaxing) | ✅ | ✅ |
             | sm7150-xiaomi-surya-tianma | Poco X3 NFC (Tianma) | ✅ | ✅ |
             | sm7150-xiaomi-sweet | Redmi Note 10 Pro | ✅ | ✅ |
