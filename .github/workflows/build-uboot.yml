@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        device: [sm7150-google-sunfish, sm7150-xiaomi-davinci-samsung, sm7150-xiaomi-davinci-visionox.dts, sm7150-xiaomi-surya-huaxing, sm7150-xiaomi-surya-tianma, sm7150-xiaomi-sweet, sm7150-xiaomi-toco, sm7150-xiaomi-tucana]
+        device: [sm7150-google-sunfish, sm7150-xiaomi-davinci-samsung, sm7150-xiaomi-davinci-visionox, sm7150-xiaomi-surya-huaxing, sm7150-xiaomi-surya-tianma, sm7150-xiaomi-sweet, sm7150-xiaomi-toco, sm7150-xiaomi-tucana]
         usb_mode: [host, peripheral]
 
     name: Build ${{ matrix.device }}
