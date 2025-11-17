@@ -192,9 +192,6 @@ jobs:
           name: "U-Boot ${{ steps.uboot_version.outputs.UBOOT_VERSION }} - SM7150 Devices"
           artifacts: ./release-assets/*.img
           body: |
-            # U-Boot ${{ steps.uboot_version.outputs.UBOOT_VERSION }} for SM7150 Devices
-
-            **U-Boot Version**: ${{ steps.uboot_version.outputs.UBOOT_VERSION }}  
             **Build Date**: ${{ steps.date.outputs.date }}  
             **Total Images**: 16 (8 devices × 2 USB modes)
 
