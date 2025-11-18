@@ -6,7 +6,7 @@ on:
       tag:
         description: 'Release tag'
         required: true
-        default: 'v2025.10-rc5'
+        default: 'v2025.10-rc2'
 
 jobs:
   build:
